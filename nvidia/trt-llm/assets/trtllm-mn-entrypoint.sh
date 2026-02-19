@@ -43,9 +43,6 @@ sed -i.bak \
     -e 's/^#\?\s*Port\s\+22\s*$/Port '$SSH_PORT'/' \
     /etc/ssh/sshd_config
 
-# Set root password
-echo "root:root" | chpasswd
-
 # Configure SSH client for root to disable host key checks within *
 printf '\nHost *\n    StrictHostKeyChecking no\n    Port %s\n    UserKnownHostsFile=/dev/null\n' "$SSH_PORT" > /etc/ssh/ssh_config.d/trt-llm.conf && \
     chmod 600 /etc/ssh/ssh_config.d/trt-llm.conf

@@ -6,7 +6,6 @@
 
 - [Overview](#overview)
 - [Instructions](#instructions)
-  - [Step 4. Install LLaMA Factory with dependencies](#step-4-install-llama-factory-with-dependencies)
 - [Troubleshooting](#troubleshooting)
 
 ---
@@ -14,22 +13,22 @@
 ## Overview
 
 ## Basic idea
-LLaMA Factory is an open-source framework that simplifies the process of training and fine 
-tuning large language models. It offers a unified interface for a variety of cutting edge 
-methods such as SFT, RLHF, and QLoRA techniques. It also supports a wide range of LLM 
-architectures such as LLaMA, Mistral and Qwen. This playbook demonstrates how to fine-tune 
+LLaMA Factory is an open-source framework that simplifies the process of training and fine
+tuning large language models. It offers a unified interface for a variety of cutting edge
+methods such as SFT, RLHF, and QLoRA techniques. It also supports a wide range of LLM
+architectures such as LLaMA, Mistral and Qwen. This playbook demonstrates how to fine-tune
 large language models using LLaMA Factory CLI on your NVIDIA Spark device.
 
 ## What you'll accomplish
 
-You'll set up LLaMA Factory on NVIDIA Spark with Blackwell architecture to fine-tune large 
-language models using LoRA, QLoRA, and full fine-tuning methods. This enables efficient 
+You'll set up LLaMA Factory on NVIDIA Spark with Blackwell architecture to fine-tune large
+language models using LoRA, QLoRA, and full fine-tuning methods. This enables efficient
 model adaptation for specialized domains while leveraging hardware-specific optimizations.
 
 ## What to know before starting
 
 - Basic Python knowledge for editing config files and troubleshooting
-- Command line usage for running shell commands and managing environments  
+- Command line usage for running shell commands and managing environments
 - Familiarity with PyTorch and Hugging Face Transformers ecosystem
 - GPU environment setup including CUDA/cuDNN installation and VRAM management
 - Fine-tuning concepts: understanding tradeoffs between LoRA, QLoRA, and full fine-tuning
@@ -42,11 +41,9 @@ model adaptation for specialized domains while leveraging hardware-specific opti
 
 - CUDA 12.9 or newer version installed: `nvcc --version`
 
-- Docker installed and configured for GPU access: `docker run --gpus all nvcr.io/nvidia/pytorch:25.11-py3 nvidia-smi`
-
 - Git installed: `git --version`
 
-- Python environment with pip: `python --version && pip --version`
+- Python 3 with venv and pip: `python3 --version && pip3 --version`
 
 - Sufficient storage space (>50GB for models and checkpoints): `df -h`
 
@@ -56,9 +53,9 @@ model adaptation for specialized domains while leveraging hardware-specific opti
 
 - Official LLaMA Factory repository: https://github.com/hiyouga/LLaMA-Factory
 
-- NVIDIA PyTorch container: https://catalog.ngc.nvidia.com/orgs/nvidia/containers/pytorch
+- PyTorch with CUDA 13: install via `pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130`
 
-- Example training configuration: `examples/train_lora/llama3_lora_sft.yaml` (from repository)
+- Example training configuration: `examples/train_lora/qwen3_lora_sft.yaml` (from repository)
 
 - Documentation: https://llamafactory.readthedocs.io/en/latest/getting_started/data_preparation.html
 
@@ -66,9 +63,9 @@ model adaptation for specialized domains while leveraging hardware-specific opti
 
 * **Duration:** 30-60 minutes for initial setup, 1-7 hours for training depending on model size and dataset.
 * **Risks:** Model downloads require significant bandwidth and storage. Training may consume substantial GPU memory and require parameter tuning for hardware constraints.
-* **Rollback:** Remove Docker containers and cloned repositories. Training checkpoints are saved locally and can be deleted to reclaim storage space.
-* **Last Updated:** 01/08/2025
-  * Update  to Qwen3 LoRA fine-tuning workflow based on LLaMA Factory updates
+* **Rollback:** Deactivate the virtual environment and remove the `factoryEnv` and `LLaMA-Factory` directories. Training checkpoints are saved locally and can be deleted to reclaim storage space.
+* **Last Updated:** 02/18/2026
+  * Updated to venv-based setup with PyTorch CUDA 13 (no Docker). Qwen3 LoRA fine-tuning workflow.
 
 ## Instructions
 
@@ -78,23 +75,37 @@ Check that your NVIDIA Spark system has the required components installed and ac
 
 ```bash
 nvcc --version
-docker --version
 nvidia-smi
-python --version
+python3 --version
 git --version
 ```
 
-## Step 2. Launch PyTorch container with GPU support
+## Step 2. Create and activate a Python virtual environment
 
-Start the NVIDIA PyTorch container with GPU access and mount your workspace directory.
-> [!NOTE]
-> This NVIDIA PyTorch container supports CUDA 13
+Create a virtual environment and activate it for the LLaMA Factory installation.
 
 ```bash
-docker run --gpus all --ipc=host --ulimit memlock=-1 -it --ulimit stack=67108864 --rm -v "$PWD":/workspace nvcr.io/nvidia/pytorch:25.11-py3 bash
+python3 -m venv factoryEnv
+source ./factoryEnv/bin/activate
 ```
 
-## Step 3. Clone LLaMA Factory repository
+## Step 3. Install PyTorch with CUDA 13 support
+
+Install PyTorch, torchvision, and torchaudio with CUDA 13.0 support from the official PyTorch index.
+
+```bash
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
+```
+
+## Step 4. Verify PyTorch CUDA support
+
+Confirm that PyTorch can see the GPU.
+
+```bash
+python -c "import torch; print(f'PyTorch: {torch.__version__}, CUDA: {torch.cuda.is_available()}')"
+```
+
+## Step 5. Clone LLaMA Factory repository
 
 Download the LLaMA Factory source code from the official repository.
 
@@ -103,46 +114,31 @@ git clone --depth 1 https://github.com/hiyouga/LLaMA-Factory.git
 cd LLaMA-Factory
 ```
 
-### Step 4. Install LLaMA Factory with dependencies
+## Step 6. Install LLaMA Factory with dependencies
 
-Remove the torchaudio dependency (not needed for LLM fine-tuning) to avoid conflicts with the container's optimized PyTorch, then install.
+Install LLaMA Factory in editable mode with metrics support.
 
 ```bash
-## Remove torchaudio dependency that conflicts with NVIDIA's PyTorch build
-sed -i 's/"torchaudio[^"]*",\?//' pyproject.toml
-
-## Install LLaMA Factory with metrics support
 pip install -e ".[metrics]"
-pip install --no-deps torchaudio
 ```
 
-## Step 5. Verify Pytorch CUDA support. 
+## Step 7. Prepare training configuration
 
-PyTorch is pre-installed with CUDA support.
-
-To verify installation:
-
-```bash
-python -c "import torch; print(f'PyTorch: {torch.__version__}, CUDA: {torch.cuda.is_available()}')"
-```
-
-## Step 6. Prepare training configuration
-
-Examine the provided LoRA fine-tuning configuration for Llama-3.
+Examine the provided LoRA fine-tuning configuration for Qwen3.
 
 ```bash
 cat examples/train_lora/qwen3_lora_sft.yaml
 ```
 
-## Step 7. Launch fine-tuning training
+## Step 8. Launch fine-tuning training
 
 > [!NOTE]
-> Login to your hugging face hub to download the model if the model is gated.
+> Login to your Hugging Face Hub to download the model if the model is gated.
 
 Execute the training process using the pre-configured LoRA setup.
 
 ```bash
-hf auth login # if the model is gated
+hf auth login   # if the model is gated
 llamafactory-cli train examples/train_lora/qwen3_lora_sft.yaml
 ```
 
@@ -158,7 +154,7 @@ Example output:
 Figure saved at: saves/qwen3-4b/lora/sft/training_loss.png
 ```
 
-## Step 8. Validate training completion
+## Step 9. Validate training completion
 
 Verify that training completed successfully and checkpoints were saved.
 
@@ -168,11 +164,11 @@ ls -la saves/qwen3-4b/lora/sft/
 
 Expected output should show:
 - Final checkpoint directory (`checkpoint-411` or similar)
-- Model configuration files (`adapter_config.json`) 
+- Model configuration files (`adapter_config.json`)
 - Training metrics showing decreasing loss values
 - Training loss plot saved as PNG file
 
-## Step 9. Test inference with fine-tuned model
+## Step 10. Test inference with fine-tuned model
 
 Test your fine-tuned model with custom prompts:
 
@@ -182,28 +178,24 @@ llamafactory-cli chat examples/inference/qwen3_lora_sft.yaml
 ## Expect: Response showing fine-tuned behavior
 ```
 
-## Step 10. For production deployment, export your model
+## Step 11. For production deployment, export your model
+
 ```bash
 llamafactory-cli export examples/merge_lora/qwen3_lora_sft.yaml
 ```
 
-## Step 11. Cleanup and rollback
+## Step 12. Cleanup and rollback
 
 > [!WARNING]
 > This will delete all training progress and checkpoints.
 
-To remove all generated files and free up storage space:
+To remove the virtual environment and cloned repository:
 
 ```bash
-cd /workspace
+deactivate
+cd ..
 rm -rf LLaMA-Factory/
-docker system prune -f
-```
-
-To rollback Docker container changes:
-```bash
-exit  # Exit container
-docker container prune -f
+rm -rf factoryEnv/
 ```
 
 ## Troubleshooting
